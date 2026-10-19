@@ -1,24 +1,35 @@
-# Claude Workflow v0.1.2
+# Claude Workflow v0.1.3
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
-## 本地加载
+## 安装与本地开发
 
 ```sh
-claude plugin validate /Users/ice/git/claude-workflow
-claude --plugin-dir /Users/ice/git/claude-workflow
+claude plugin marketplace add diqiu50/claude-workflow
+claude plugin install dynamic-workflow@workflow-local
 ```
 
-也可持久安装本地 marketplace：
+开发时可从本地仓库单次加载：
 
-```text
-/plugin marketplace add /Users/ice/git/claude-workflow
-/plugin install dynamic-workflow@workflow-local
+```sh
+claude plugin validate /path/to/claude-workflow
+claude --plugin-dir /path/to/claude-workflow
 ```
 
-开发加载每次启动传入 `--plugin-dir`；尚未发布 marketplace 或 GitHub 远程仓库。无需 pip/npm 依赖。适用于 macOS/Linux（状态锁使用 fcntl）；Windows 请使用 WSL。
+无需 pip/npm 或 Superpowers 插件依赖。适用于 macOS/Linux（状态锁使用 fcntl）；Windows 请使用 WSL。
 
-Superpowers 为可选独立安装，参考 https://github.com/obra/superpowers 。本插件提示 Agent 复用其可用 skills，未复制源码，也不强制绑定未经验证的 marketplace 标识。
+## 精简的方法复用
+
+只引入两份本地、按需读取的方法文档：
+
+| 场景 | 本地方法 | 主要内容 |
+|---|---|---|
+| Bug 排查及修复 | skills/workflow-router/references/debugging.md | 先证据与根因，再单一假设、最小修复和回归 |
+| 交付或登记验证前 | skills/workflow-router/references/verification.md | 看实际输出，区分通过、失败、未验证；按改动规模选择检查 |
+
+它们是 Superpowers 对应技能的精简适配，不是原版技能完整搬运。Hook 给出候选文档路径，Agent 在需要时读取；拼写修复跳过调试方法，宽泛需求等待澄清时不必加载这两份文档。不新增启动 Hook、Skill 服务、工作树管理、子代理、外部 Memory 或后台上传。用户限制和原有权限门禁仍适用。
+
+来源固定到上游提交，保留原作者版权和 MIT 许可证。见 third_party/superpowers/NOTICE.md、LICENSE 与 upstream.json。后续升级参考方法需显式修改并回归，不会自动跟随上游变化。
 
 ## 验证
 
@@ -61,3 +72,7 @@ python3 tests/e2e/run.py --output /tmp/workflow-e2e-new --plugin-dir "$PWD"
 ```
 
 输出目录必须是新的。省略 `--plugin-dir` 可检查当前用户已安装的插件；传入时排除 user 设置以避免同时加载旧版。每个样例有独立 Git 基线，T05 续接 T04 会话。脚本保存模型输出、Hook 事件、状态和文件哈希；验收仍需核对语义、文件变化与独立测试，不能仅用进程返回码判定成功。脱敏评测结果见 `tests/results/v0.1.2.json`。
+
+## v0.1.3 验证
+
+19 项自动化测试、官方配置校验和六个真实场景通过。日志确认两份本地方法实际读取成功，未调用外部 Superpowers 技能。结果见 tests/results/v0.1.3.json 和 docs/validation.md。6/6 是单次小样本结果，不能视为所有任务的稳定成功率。

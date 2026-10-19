@@ -1,0 +1,13 @@
+# Evidence before completion
+
+Adapted from Superpowers verification-before-completion. Attribution and MIT
+license: ../../../third_party/superpowers/ (relative to this directory).
+
+Before a completion claim or a workflow record:
+
+1. Identify what would substantiate the actual claim: a targeted test for behavior, a build for compilation, or a diff/content comparison for a text edit. Passing lint does not establish a passing build. Passing tests alone does not establish every requirement.
+2. Run the appropriate allowed check against the final artifact, then read the exit status and relevant output. A proposed command, a denied tool call, or another agent's assertion is not a successful execution. Reuse fresh evidence obtained after the last relevant change; do not rerun merely to satisfy ceremony.
+3. Compare the evidence with the acceptance criteria. Report the exact scope checked and any remaining uncertainty. For a regression, establish that the test exposes the original symptom when feasible and permitted.
+4. Record passed only for checks actually completed successfully, failed for an observed failure, and unavailable for missing/prohibited execution. Include a concrete command/result or the limitation. The record is an agent declaration, not independent proof.
+
+A static Review may finish without running code: cite locations and trigger conditions, label conclusions as static, and use unavailable for runtime verification. If the user forbids tests/checks, respect that and disclose unverified changes. Do not weaken permissions or change files merely to obtain a passing status. Simple edits need proportionate checks, not a full test suite.

@@ -1,0 +1,114 @@
+{
+  "suite": "local-exploratory-six-20261019",
+  "version": "0.1.3",
+  "model": "claude-opus-5-5",
+  "limitations": [
+    "One small-sample run, not a stable reliability estimate.",
+    "Local method candidates and state fields do not prove methods were followed; method_reads are actual Read tool requests.",
+    "Methods are condensed adaptations of two Superpowers skills, not a full plugin integration.",
+    "Token totals include cache reads; do not infer controlled cost improvements from a single run."
+  ],
+  "method_adoption": {
+    "T01": [
+      "verification.md"
+    ],
+    "T02": [],
+    "T03": [
+      "verification.md"
+    ],
+    "T04": [
+      "verification.md"
+    ],
+    "T05": [
+      "debugging.md"
+    ],
+    "T06": [
+      "debugging.md"
+    ]
+  },
+  "external_superpowers_skill_calls": [],
+  "unit_tests_passed": 19,
+  "method_read_results_verified": true,
+  "tasks": [
+    {
+      "id": "T01",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 18.957064151763916,
+      "tokens": 103591,
+      "changed_files": [
+        "README.md"
+      ],
+      "method_reads": [
+        "verification.md"
+      ]
+    },
+    {
+      "id": "T02",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 15.377660989761353,
+      "tokens": 81005,
+      "changed_files": [],
+      "method_reads": []
+    },
+    {
+      "id": "T03",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 41.96290111541748,
+      "tokens": 198734,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ],
+      "method_reads": [
+        "verification.md"
+      ]
+    },
+    {
+      "id": "T04",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 32.10475516319275,
+      "tokens": 102193,
+      "changed_files": [],
+      "method_reads": [
+        "verification.md"
+      ]
+    },
+    {
+      "id": "T05",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 32.98782992362976,
+      "tokens": 121817,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ],
+      "method_reads": [
+        "debugging.md"
+      ]
+    },
+    {
+      "id": "T06",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 20.616111278533936,
+      "tokens": 100307,
+      "changed_files": [
+        "app.py"
+      ],
+      "method_reads": [
+        "debugging.md"
+      ]
+    }
+  ]
+}

@@ -12,7 +12,11 @@ Development: understand → inspect → plan as needed → implement → verify 
 Review: read diff and callers → substantiate findings with locations and failure examples → deliver. Default read-only.
 Investigation: collect evidence → hypotheses → test → distinguish confirmed root cause from uncertainty. Default read-only; ask user before invasive probes.
 
-When installed, reuse Superpowers brainstorming/writing-plans for complex development, systematic-debugging for investigation, requesting-code-review when appropriate, and verification-before-completion. Discover available skills; do not assume Superpowers exists, copy its implementation, or delegate without authorization. If absent follow the workflows above.
+This plugin includes two local method references adapted from Superpowers, without an external dependency or startup hook. Read only the relevant reference, using the absolute method path supplied by the prompt hook (or this skill's references/ directory):
+- references/debugging.md: before investigating or proposing a bug fix; skip for typo-only edits. Reuse prior root-cause evidence when switching from Review to repair.
+- references/verification.md: before final completion claims or recording validation; use proportionate fresh evidence and respect forbidden execution.
+
+Apply these local methods directly. Do not search for or invoke external superpowers:* skills as part of this workflow. No other Superpowers workflows, agents, worktrees or branch operations are imported.
 
 Use the actual absolute CLI script path supplied by UserPromptSubmit; CLAUDE_PLUGIN_ROOT is guaranteed in hook commands, not in ordinary Bash tool calls. CLI: `python3 /absolute/plugin/scripts/workflow.py route --session SESSION --type development --cwd PROJECT` corrects routing. `record --session SESSION --cwd PROJECT --status passed|failed|unavailable --evidence "actual result or specific limitation"` records agent-reported evidence. A PreToolUse event is an attempt, never evidence of success. Record after the last potentially mutating tool. Never fabricate passed checks. Evidence is a declaration, not independently verified proof. Mention limitations in the final answer.
 

@@ -42,3 +42,20 @@
 完整六场景结果以上述最终候选复验为准。专项发现仅豁免插件门禁还不足以通过 Claude Code 原生的变量引用检查，因此 PreToolUse 会将严格匹配的 record 命令里带引号 PWD 转换为当前 cwd 的字面绝对路径，通过 updatedInput 返回，不返回 permissionDecision=allow。其他参数保持原样，继续执行原生权限检查。
 
 最终真实 Review 专项确认：模型发送 --cwd "$PWD"；Hook 事件包含等价的字面路径 updatedInput，且没有自动批准；record 正常退出、状态为 review/unavailable、permission_denials 为空。没有执行应用或测试，静态审查不会标成测试通过。
+
+## v0.1.3 精简本地方法适配
+
+仅适配 Superpowers 的 systematic-debugging 和 verification-before-completion 两份技能的方法，固定来源提交 bb92a77741419a4ab5f06e711a283343f1ada0c3，保留 MIT 许可和来源哈希。无新增运行依赖、启动 Hook、子代理、工作树或后台服务。
+
+- 19 项自动化测试通过，插件和 marketplace 官方校验通过。
+- 同一组六场景提示在新 Git 样例中真实运行，本地候选加载排除 user 设置，模型 claude-opus-5-5，6/6 满足验收。
+- T01 只改 README，实际 Read 成功读取 verification.md，没有读取 debugging.md。
+- T02 先调查再询问方向；跟踪文件不变，没有读取两项方法。
+- T03 独立重跑 7 项测试通过；另检查新旧配置与缺字段行为，实际读取 verification.md。
+- T04 跟踪文件不变，静态审查未执行应用，证据 unavailable，实际读取 verification.md。
+- T05 同一会话切换开发并保留摘要，实际读取 debugging.md；独立重跑 3 项测试与额外的空/单/多元素检查通过。此前同会话已读取 verification.md。
+- T06 尊重禁止检查的要求，实际读取 debugging.md，未运行应用或测试；记录 unavailable 并披露。
+- 所列方法读取均核对对应 tool_result 成功返回，不仅检查 Hook 候选字段。未出现外部 superpowers:* Skill 调用。
+- 部分复杂 Shell 查看命令与原代码回退检查被原生权限拒绝，Agent 未绕过，无法实际运行的回归检查予以披露。
+- 单次平均耗时约 27 秒；Token 统计包含缓存读取。新增方法读取有上下文成本，本次小样本不能证明稳定收益或成本下降。
+- 脱敏摘要 tests/results/v0.1.3.json；完整工具日志保留本机，不提交原始对话或账号信息。

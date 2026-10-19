@@ -3,7 +3,7 @@
 import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex
 from pathlib import Path
 import fcntl
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 def route(prompt):
     text = prompt.lower()
@@ -27,6 +27,16 @@ def needs_clarification(prompt):
     # Concrete acceptance or explicit focus makes the direction reviewable.
     scoped = re.search(r'只(?:改|做|修|优化)|仅|重点|范围|验收|具体|要求|方向|例如|比如|限定|只需|scope|acceptance|specifically|only|focus|such as|for example', text)
     return bool(broad and subject and not scoped)
+
+def method_modules(kind, prompt):
+    modules = []
+    symptom = re.search(r'bug|debug|排查|调查|根因|崩溃|失败|异常|修复', prompt, re.I)
+    typo_only = re.search(r'拼写|typo', prompt, re.I) and not re.search(r'bug|crash|崩溃|失败|异常|根因', prompt, re.I)
+    if kind == 'investigation' or (kind == 'development' and symptom and not typo_only):
+        modules.append('debugging')
+    if kind in ('development', 'review', 'investigation'):
+        modules.append('verification')
+    return modules
 
 @contextlib.contextmanager
 def state_store(cwd, session):
@@ -91,9 +101,11 @@ def handle(data):
             kind, level = route(data.get('prompt',''))
             history = s.get('history',[])
             if s: history = (history+[{'type':s.get('type'),'validation':s.get('validation')}])[-20:]
-            s.clear(); s.update(version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')))
+            s.clear(); s.update(version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')),method_candidates=method_modules(kind,data.get('prompt','')))
+            references = Path(__file__).resolve().parents[1] / 'skills/workflow-router/references'
+            methods = ' Local method candidates: ' + ', '.join(str(references / (name + '.md')) for name in s['method_candidates']) + '. Read debugging before bug fixes; read verification before completion claims or validation records. Apply these local references, not external Superpowers skills.' if s['method_candidates'] else ''
             clarification = (' Material ambiguity: broad UX improvement without a selected scope. Inspect context with read tools first, then ask the user to choose a direction before implementation. Do not pick a direction yourself, change APIs, or treat routing as authorization. File edits are gated until a concrete user follow-up.' if s['needs_clarification'] else '')
-            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Never treat a proposed command as a passed check.{clarification}')
+            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Never treat a proposed command as a passed check.{clarification}{methods}')
         if not s: return {}
         if event == 'PreToolUse':
             tool = data.get('tool_name','')

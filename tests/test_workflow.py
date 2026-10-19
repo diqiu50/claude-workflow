@@ -102,6 +102,22 @@ class WorkflowTests(unittest.TestCase):
   for prompt in ['优化使用体验：只改 README 的用法说明','Improve UX, specifically document the existing API','修复 first([])，空列表返回 None']:
    self.assertFalse(w.needs_clarification(prompt))
   self.assertTrue(w.needs_clarification('Improve the user experience'))
+ def test_local_methods_are_selected_lazily(self):
+  cases=[('修复 README 拼写错误',['verification']),('修复 first([]) 崩溃',['debugging','verification']),('排查登录失败',['debugging','verification']),('Review app.py',['verification']),('优化这个项目的使用体验',[])]
+  for prompt,expected in cases:
+   with self.subTest(prompt=prompt):
+    output=self.event('UserPromptSubmit',prompt=prompt)
+    self.assertEqual(self.state()['method_candidates'],expected)
+    for name in expected:
+     target=ROOT/'skills/workflow-router/references'/(name+'.md')
+     self.assertTrue(target.is_file())
+     self.assertIn(str(target),output['hookSpecificOutput']['additionalContext'])
+ def test_packaged_methods_have_pinned_attribution(self):
+  provenance=json.loads((ROOT/'third_party/superpowers/upstream.json').read_text())
+  self.assertRegex(provenance['commit'],r'^[a-f0-9]{40}$')
+  self.assertEqual(len(provenance['local_files']),2)
+  for name in provenance['local_files']:self.assertTrue((ROOT/name).is_file())
+  self.assertTrue((ROOT/'third_party/superpowers/LICENSE').is_file())
  def test_session_isolation_and_traversal(self):
   self.event('UserPromptSubmit',prompt='review')
   w.handle(dict(self.data,session_id='../../outside',hook_event_name='UserPromptSubmit',prompt='fix typo'))
