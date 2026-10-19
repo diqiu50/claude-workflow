@@ -71,3 +71,13 @@
 - 单独的真实失败专项：现有空列表回归用例报 IndexError，verify 记录退出码 1、outcome completed、validation failed，代码保持原样；未以 unavailable 覆盖。该专项不计入六场景 ETCR 分母。
 - 本次 6/6 仍是小样本结果，不是稳定成功率。执行记录只证明所选进程的结果；不证明覆盖充分，也不是对可编辑本地状态的安全认证。直接执行的普通测试命令不会自动产生受管理凭据。
 - 脱敏摘要 tests/results/v0.1.4.json，完整本机记录不上传。
+
+## v0.1.5 Stop 诊断与重复拦截
+
+- 35 项自动化测试通过，新增：Stop Hook 返回 block 时进程正常退出且 stderr 为空；提示绑定实际项目/会话、无 project/session 占位符；生成的 unavailable 命令可执行；重复 Stop 不循环；后续 Bash 使凭据失效时给出解释；路径与会话特殊字符正确引用。
+- 六个真实场景通过；T03 的 8 项测试、T05 的 4 项测试独立复跑通过，并检查核心输入行为。T01/T03/T05 的实际退出码和凭据哈希已核对；T04/T06 未验证时仍为 unavailable。
+- 官方配置校验通过；没有取消实际进程证据要求，仍保留原生权限与保守 Bash 失效逻辑。
+- 用户报告的 my-claude 自定义缓存路径不在当前可访问环境，因此未读取其具体任务状态，不能确认该次由哪条工具调用导致缺少凭据。
+- Claude Code 仍可能把正常 JSON Stop block 显示为 Stop hook error。新提示解释其为 completion guard，并给出真实路径/会话命令。该标签不等于 Python 异常。
+- 同一任务版本最多提醒一次；新潜在修改可再次要求验证。继续交付但状态 unknown 不会记为 passed。
+- 结果为单次六场景样本，见 tests/results/v0.1.5.json。

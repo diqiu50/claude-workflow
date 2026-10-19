@@ -31,3 +31,9 @@ Each user prompt starts a new task ID. Potentially mutating tool attempts increm
 This tracks changes observed by the configured PreToolUse hook. External/manual modifications outside those events are not automatically detected. State, receipts and plugin source remain locally editable: this prevents accidental self-reported success, not malicious tampering by an agent able to edit the evidence system. It does not prove test selection, coverage, acceptance, or the truth of the final natural-language answer.
 
 Normal direct test commands remain untracked. Start with verify instead of rerunning an already completed test merely to add a pass record. Read/Grep and other non-mutating inspection need not invalidate a check; conservative Bash/MCP handling may invalidate it even when the command was read-only.
+
+## Completion guard diagnostics (v0.1.5)
+
+A JSON Stop block is intentional, not a nonzero Python hook exit. Claude Code may still label it a Stop hook error in its UI. The prompt now includes shell-quoted concrete script/cwd/session values, a verify prefix awaiting only the actual check argv, and a complete unavailable fallback. The fallback records only the truthful absence of managed evidence and must not be described as successful verification.
+
+The guard records the revision it reminded about and does not block repeated Stop events for that revision. A new potentially mutating tool attempt changes the revision and can require fresh attention. State remains unknown if no valid evidence or limitation is supplied; allowing a later final reply never means the task passed. Diagnostics include missing/corrupted/stale receipt details and the immediately preceding invalidating tool when it discarded an executor receipt.

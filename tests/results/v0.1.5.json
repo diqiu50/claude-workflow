@@ -1,0 +1,77 @@
+{
+  "suite": "local-exploratory-six-20261019",
+  "version": "0.1.5",
+  "unit_tests_passed": 35,
+  "limitations": [
+    "One small-sample run, not a stable success-rate estimate.",
+    "The exact project/session behind the user-reported v0.1.4 message was not accessible, so its particular missing-receipt trigger is unconfirmed.",
+    "A JSON Stop block may still be labeled Stop hook error by Claude Code; that label does not imply a Python exception.",
+    "Conservative Bash invalidation remains; this patch diagnoses it rather than assuming arbitrary commands are read-only."
+  ],
+  "tasks": [
+    {
+      "id": "T01",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 80.59507298469543,
+      "tokens": 130669,
+      "changed_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "T02",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 37.040645122528076,
+      "tokens": 84047,
+      "changed_files": []
+    },
+    {
+      "id": "T03",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 32.89305901527405,
+      "tokens": 110626,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ]
+    },
+    {
+      "id": "T04",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 84.41540503501892,
+      "tokens": 62403,
+      "changed_files": []
+    },
+    {
+      "id": "T05",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 24.922598838806152,
+      "tokens": 110365,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ]
+    },
+    {
+      "id": "T06",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 79.38289380073547,
+      "tokens": 78463,
+      "changed_files": [
+        "app.py"
+      ]
+    }
+  ]
+}

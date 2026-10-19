@@ -141,6 +141,52 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.state()['validation'], 'unavailable')
 
+    def test_stop_prompt_binds_real_cwd_and_session_and_hook_exits_zero(self):
+        self.event('PreToolUse', tool_name='Edit')
+        r = subprocess.run([sys.executable, str(ROOT / 'scripts/workflow.py'), 'hook'],
+                           input=json.dumps(dict(cwd=self.cwd, session_id='session', hook_event_name='Stop')),
+                           text=True, capture_output=True)
+        self.assertEqual(r.returncode, 0)
+        self.assertEqual(r.stderr, '')
+        message = json.loads(r.stdout)['reason']
+        self.assertIn('not a script exception', message)
+        self.assertIn(self.cwd, message)
+        self.assertNotIn('<project>', message)
+        self.assertNotIn('<session>', message)
+        prefix, unavailable = w.verification_commands(dict(cwd=self.cwd, session_id='session'))
+        self.assertIn(prefix, message)
+        self.assertIn(unavailable, message)
+        completed = subprocess.run(__import__('shlex').split(unavailable), capture_output=True, text=True)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.state()['validation'], 'unavailable')
+
+    def test_repeated_stop_without_changes_does_not_loop(self):
+        self.event('PreToolUse', tool_name='Edit')
+        self.assertEqual(self.event('Stop')['decision'], 'block')
+        self.assertEqual(self.event('Stop'), {})
+        self.assertEqual(self.event('Stop'), {})
+        self.assertEqual(self.state()['validation'], 'unknown')
+        self.event('PreToolUse', tool_name='Edit')
+        self.assertEqual(self.event('Stop')['decision'], 'block')
+
+    def test_later_bash_invalidation_is_explained(self):
+        self.check('print("OK")')
+        self.event('PreToolUse', tool_name='Bash', tool_input={'command': 'git status'})
+        message = self.event('Stop')['reason']
+        self.assertIn('Bash', message)
+        self.assertIn('invalidated an earlier receipt', message)
+        self.assertIn('read-only', message)
+
+    def test_bound_commands_quote_paths_and_session_without_evaluation(self):
+        import shlex
+        project = str(Path(self.cwd) / "project with 'quotes' and $dollars")
+        session = "session$(echo unexpected)"
+        prefix, unavailable = w.verification_commands(dict(cwd=project, session_id=session))
+        for command in (prefix, unavailable):
+            args = shlex.split(command)
+            self.assertEqual(args[args.index('--cwd') + 1], str(Path(project).resolve()))
+            self.assertEqual(args[args.index('--session') + 1], session)
+
     def test_cli_executes_real_command(self):
         command = [sys.executable, str(ROOT / 'scripts/workflow.py'), 'verify', '--cwd', self.cwd,
                    '--session', 'session', '--', sys.executable, '-c', 'print("real check")']

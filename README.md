@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.4
+# Claude Workflow v0.1.5
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -88,3 +88,9 @@ python3 /path/to/plugin/scripts/workflow.py verify --cwd /path/to/project --sess
 `record --status passed` 和 `record --status failed` 已移除；`record --status unavailable --evidence "原因"` 用于禁止/无法执行的情况，不能覆盖当前已有的实际失败。未执行受管理检查的静态 Review/调查，在 Stop 自动记 unavailable。普通直接运行的 pytest/unittest 不会自动生成凭据，也不会仅凭文字输出登记成功。
 
 passed 只代表选定命令正常结束，不代表检查选得正确、覆盖充分或所有需求均满足。原生权限仍有效，verify 不自动批准，也不使 Review 获得写入许可。详细接口与证据格式见 docs/verification-executor.md。
+
+## v0.1.5 Stop 提示与恢复
+
+Claude Code 可能把 Stop 返回的 `decision: block` 显示为 “Stop hook error”。这不一定是脚本异常：本插件在缺少有效执行凭据时会主动请求继续验证。v0.1.5 的提示明确标识 completion guard，绑定当前脚本路径、项目和会话 ID，不再输出 `<project>`/`<session>` 占位符；提供可追加实际检查命令的 verify 前缀以及完整的 unavailable 记录命令。
+
+同一任务版本只提醒一次，即使客户端再次发送 Stop 且未设置 stop_hook_active 也不会反复拦截。发生新的潜在修改后可再次提醒。提示会说明后续 Bash 等操作使已有凭据失效的情况；这仍是保守策略，查看 git status 也可能使验证失效。直接跑过普通测试但没有受管理凭据时，不要仅为消除提示而重复测试；可以如实披露未登记的结果并记录 unavailable。没有取消真实进程证据要求，也不会自动伪造 passed。

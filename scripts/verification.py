@@ -15,7 +15,12 @@ from pathlib import Path
 MAX_OUTPUT_BYTES = 65536
 
 
-def invalidate(state):
+def invalidate(state, tool=None):
+    state['last_invalidation'] = {
+        'tool': tool or 'workflow route change',
+        'previous_validation': state.get('validation', 'unknown'),
+        'had_executor_receipt': bool(state.get('verification')),
+    }
     state['revision'] = state.get('revision', 0) + 1
     state.update(validation='unknown', validation_source=None, verification=None,
                  active_verification=None)
@@ -32,6 +37,7 @@ def refresh(state, root, session):
         if not (state.get('validation_source') in ('agent_limitation', 'hook_no_execution')
                 and state.get('validation') == 'unavailable'):
             state.update(validation='unknown', validation_source=None)
+        state['verification_problem']='No current managed verification receipt.'
         return None
     try:
         run_id = reference['id']
@@ -59,12 +65,14 @@ def refresh(state, root, session):
             status = 'unavailable'
         else:
             raise ValueError('incomplete verification')
+        state.pop('verification_problem', None)
         state.update(validation=status, validation_source='executor',
                      evidence=(shlex.join(receipt['argv']) + ': ' +
                                receipt['outcome'] + ', exit=' +
                                str(receipt['exit_code']))[:2000])
         return receipt
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        state['verification_problem']='Verification receipt is missing, stale, or changed: ' + str(exc)[:300]
         state.update(validation='unknown', validation_source=None)
         return None
 
