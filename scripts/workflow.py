@@ -3,7 +3,7 @@
 import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex
 from pathlib import Path
 import fcntl
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 
 def route(prompt):
     text = prompt.lower()
@@ -14,6 +14,19 @@ def route(prompt):
     else: kind = 'general'
     complexity = 'complex' if re.search(r'复杂|架构|跨模块|迁移|architecture|migration', text) else 'simple' if re.search(r'简单|拼写|typo|rename', text) else 'medium'
     return kind, complexity
+
+def needs_clarification(prompt):
+    """Conservative guard for broad improvement requests without a chosen scope.
+
+    This is a bounded heuristic, not proof that all other prompts are clear.
+    Agent semantic clarification remains required for other material ambiguity.
+    """
+    text = prompt.lower()
+    broad = re.search(r'优化|改善|提升|改进|improve|optimi[sz]e|make.{0,30}better', text)
+    subject = re.search(r'体验|好用|易用|usability|user experience|\bux\b', text)
+    # Concrete acceptance or explicit focus makes the direction reviewable.
+    scoped = re.search(r'只(?:改|做|修|优化)|仅|重点|范围|验收|具体|要求|方向|例如|比如|限定|只需|scope|acceptance|specifically|only|focus|such as|for example', text)
+    return bool(broad and subject and not scoped)
 
 @contextlib.contextmanager
 def state_store(cwd, session):
@@ -35,33 +48,41 @@ def state_store(cwd, session):
 def context(event, text):
     return {'hookSpecificOutput':{'hookEventName':event,'additionalContext':text}}
 
-def is_local_record(data):
-    """Exempt only a standalone record command for this script/session/project.
+def local_record_command(data):
+    """Return a literal command only for this script/session/project.
 
     Never emit permissionDecision=allow: native permissions still apply.
-    Shell expansions and unquoted operators are deliberately unsupported.
+    Only quoted cwd PWD is normalized; other expansions remain unsupported.
     """
-    if data.get('tool_name') != 'Bash': return False
+    if data.get('tool_name') != 'Bash': return None
     command = data.get('tool_input', {}).get('command', '')
-    if not isinstance(command, str) or any(c in command for c in '$`\n\r'):
-        return False
+    if not isinstance(command, str): return None
+    # Resolve ONLY a quoted PWD used as the cwd option. No environment or shell
+    # evaluation: compare the resulting literal to the trusted hook input below.
+    command = re.sub(r'(?<!\S)--cwd[ \t]+"\$(?:PWD|\{PWD\})"(?=\s|$)',
+                     lambda _: '--cwd ' + shlex.quote(data['cwd']), command)
+    if any(c in command for c in '$`\n\r'): return None
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>()")
         lexer.whitespace_split = True
         lexer.commenters = ""
         args = list(lexer)
-        if any(arg and all(c in ";&|<>()" for c in arg) for arg in args): return False
-        if len(args) != 11 or args[0] != 'python3' or args[2] != 'record': return False
-        if Path(args[1]).resolve() != Path(__file__).resolve(): return False
+        if any(arg and all(c in ";&|<>()" for c in arg) for arg in args): return None
+        if len(args) != 11 or args[0] != 'python3' or args[2] != 'record': return None
+        if Path(args[1]).resolve() != Path(__file__).resolve(): return None
         pairs = list(zip(args[3::2], args[4::2]))
         options = dict(pairs)
-        if len(options) != 4 or set(options) != {'--cwd','--session','--status','--evidence'}: return False
-        return (Path(options['--cwd']).resolve() == Path(data['cwd']).resolve()
+        if len(options) != 4 or set(options) != {'--cwd','--session','--status','--evidence'}: return None
+        valid = (Path(options['--cwd']).resolve() == Path(data['cwd']).resolve()
                 and options['--session'] == data['session_id']
                 and options['--status'] in ('passed','failed','unavailable')
                 and bool(options['--evidence'].strip()))
+        return command if valid else None
     except (ValueError, OSError):
-        return False
+        return None
+
+def is_local_record(data):
+    return local_record_command(data) is not None
 
 def handle(data):
     event = data['hook_event_name']
@@ -70,18 +91,26 @@ def handle(data):
             kind, level = route(data.get('prompt',''))
             history = s.get('history',[])
             if s: history = (history+[{'type':s.get('type'),'validation':s.get('validation')}])[-20:]
-            s.clear(); s.update(version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False)
-            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Never treat a proposed command as a passed check.')
+            s.clear(); s.update(version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')))
+            clarification = (' Material ambiguity: broad UX improvement without a selected scope. Inspect context with read tools first, then ask the user to choose a direction before implementation. Do not pick a direction yourself, change APIs, or treat routing as authorization. File edits are gated until a concrete user follow-up.' if s['needs_clarification'] else '')
+            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Never treat a proposed command as a passed check.{clarification}')
         if not s: return {}
         if event == 'PreToolUse':
             tool = data.get('tool_name','')
-            if is_local_record(data): return {}
-            if s['type'] in ('review','investigation'):
+            record_command = local_record_command(data)
+            if record_command is not None:
+                if record_command != data['tool_input']['command']:
+                    # Resolve the supported cwd alias before native permission
+                    # checking. Do not auto-approve the rewritten command.
+                    updated = dict(data['tool_input'], command=record_command)
+                    return {'hookSpecificOutput':{'hookEventName':event,'updatedInput':updated}}
+                return {}
+            if s['type'] in ('review','investigation') or s.get('needs_clarification'):
                 # A shell parser cannot prove arbitrary commands read-only. Defer to native permission UI.
                 if tool in ('Write','Edit','MultiEdit','NotebookEdit'):
-                    return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'deny','permissionDecisionReason':'Read-only workflow. User must request implementation before switching to development.'}}
+                    return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'deny','permissionDecisionReason':('Clarify the improvement direction with the user before editing. A route change does not clear this requirement.' if s.get('needs_clarification') else 'Read-only workflow. User must request implementation before switching to development.')}}
                 if tool in ('Bash','PowerShell') or tool.startswith('mcp__'):
-                    return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'ask','permissionDecisionReason':'Read-only workflow: inspect this command/tool for side effects.'}}
+                    return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'ask','permissionDecisionReason':('Pending clarification: inspect this command/tool for side effects; use read tools to investigate before asking the user.' if s.get('needs_clarification') else 'Read-only workflow: inspect this command/tool for side effects.')}}
             if tool in ('Write','Edit','MultiEdit','NotebookEdit','Bash','PowerShell') or tool.startswith('mcp__'):
                 s.update(dirty=True,validation='unknown')
         if event == 'Stop':

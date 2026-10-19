@@ -69,6 +69,39 @@ class WorkflowTests(unittest.TestCase):
   subprocess.run(shlex.split(command),check=True)
   self.event('PreToolUse',tool_name='Bash',tool_input={'command':command})
   self.assertEqual(self.state()['validation'],'passed')
+ def test_record_accepts_only_quoted_pwd_as_cwd(self):
+  self.event('UserPromptSubmit',prompt='review')
+  base=self.record_command()
+  literal=shlex.quote(self.tmp.name)
+  for pwd in ['"$PWD"','"${PWD}"']:
+   command=base.replace('--cwd '+literal,'--cwd '+pwd)
+   with self.subTest(pwd=pwd):
+    self.assertTrue(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))
+    result=self.event('PreToolUse',tool_name='Bash',tool_input={'command':command,'description':'Record evidence'})
+    output=result['hookSpecificOutput']
+    self.assertNotIn('permissionDecision',output)
+    self.assertEqual(output['updatedInput']['description'],'Record evidence')
+    self.assertNotIn('$',output['updatedInput']['command'])
+    subprocess.run(output['updatedInput']['command'],shell=True,cwd=self.tmp.name,check=True)
+    self.assertEqual(self.state()['validation'],'passed')
+  for pwd in ['"$HOME"','"$(pwd)"','"$PWD/.."','"${PWD:-/tmp}"']:
+   command=base.replace('--cwd '+literal,'--cwd '+pwd)
+   self.assertFalse(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))
+ def test_broad_ux_requires_user_direction_even_after_route_change(self):
+  r=self.event('UserPromptSubmit',prompt='优化这个项目的使用体验。')
+  self.assertTrue(self.state()['needs_clarification'])
+  self.assertIn('ask the user to choose',r['hookSpecificOutput']['additionalContext'])
+  self.assertEqual(self.event('PreToolUse',tool_name='Read'),{})
+  subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'route','--cwd',self.tmp.name,'--session','test','--type','development'],check=True)
+  self.assertEqual(self.event('PreToolUse',tool_name='Edit')['hookSpecificOutput']['permissionDecision'],'deny')
+  self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':'python3 app.py'})['hookSpecificOutput']['permissionDecision'],'ask')
+  self.event('UserPromptSubmit',prompt='只改 README，补充现有 API 用法，不修改代码。')
+  self.assertFalse(self.state()['needs_clarification'])
+  self.assertEqual(self.event('PreToolUse',tool_name='Edit'),{})
+ def test_explicit_scope_does_not_trigger_clarification(self):
+  for prompt in ['优化使用体验：只改 README 的用法说明','Improve UX, specifically document the existing API','修复 first([])，空列表返回 None']:
+   self.assertFalse(w.needs_clarification(prompt))
+  self.assertTrue(w.needs_clarification('Improve the user experience'))
  def test_session_isolation_and_traversal(self):
   self.event('UserPromptSubmit',prompt='review')
   w.handle(dict(self.data,session_id='../../outside',hook_event_name='UserPromptSubmit',prompt='fix typo'))

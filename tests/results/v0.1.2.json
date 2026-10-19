@@ -1,0 +1,85 @@
+{
+  "suite": "local-exploratory-six-20261019",
+  "version": "0.1.2",
+  "model": "claude-opus-5-5",
+  "limitations": [
+    "Single six-scenario run is not a stable success-rate estimate.",
+    "Local candidate loaded with --plugin-dir excluding user settings; prior v0.1.1 run used installed user settings. Not a controlled baseline comparison.",
+    "Clarification heuristic covers common broad UX prompts, not all semantic ambiguity.",
+    "Token totals include cache reads."
+  ],
+  "tasks": [
+    {
+      "id": "T01",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 23.68080186843872,
+      "tokens": 120337,
+      "changed_files": [
+        "README.md"
+      ]
+    },
+    {
+      "id": "T02",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 17.828546047210693,
+      "tokens": 80627,
+      "changed_files": []
+    },
+    {
+      "id": "T03",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 51.56883788108826,
+      "tokens": 148152,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ]
+    },
+    {
+      "id": "T04",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 24.57621192932129,
+      "tokens": 79906,
+      "changed_files": []
+    },
+    {
+      "id": "T05",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 20.90946888923645,
+      "tokens": 90427,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ]
+    },
+    {
+      "id": "T06",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 27.499090909957886,
+      "tokens": 97729,
+      "changed_files": [
+        "app.py"
+      ]
+    }
+  ],
+  "pwd_review_regression": {
+    "passed": true,
+    "mode": "review",
+    "validation": "unavailable",
+    "permission_denials": 0,
+    "literal_path_rewrite_observed": true,
+    "automatic_permission_approval": false
+  }
+}

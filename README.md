@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.1
+# Claude Workflow v0.1.2
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -48,3 +48,16 @@ CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，�
 ## v0.1.1 修复
 
 Review/调查模式下，严格匹配本插件脚本、当前项目和会话的独立 `record` 命令不再触发只读门禁，也不再使已有验证失效。原生 Claude Code 权限仍适用；拼接命令、重定向、命令替换及其他会话的记录不在豁免范围内。Hook 提供实际 CLI 绝对路径，避免依赖模型工具环境中的 CLAUDE_PLUGIN_ROOT。否定表达“不要修改”不再误触发开发候选。
+
+## v0.1.2 修复与回归
+
+- 本地 `record` 支持 `--cwd "$PWD"` 和 `--cwd "${PWD}"`，只匹配当前项目、当前会话和插件脚本。Hook 将这两种当前目录写法转换为字面绝对路径，再交回原生权限检查，不自动批准。其他环境变量、命令替换、拼接及重定向仍不豁免；原生权限保持有效。
+- 宽泛的体验优化请求先调查再询问方向；等待用户明确方向时，直接编辑被阻止，Shell/外部工具仍需原生权限检查。具体范围明确的请求不触发这项门禁。该候选规则只覆盖常见中英文 UX 请求，不代替 Agent 对所有歧义的语义判断。
+
+运行六个真实 Claude Code 场景（需要登录，会使用账号额度）：
+
+```sh
+python3 tests/e2e/run.py --output /tmp/workflow-e2e-new --plugin-dir "$PWD"
+```
+
+输出目录必须是新的。省略 `--plugin-dir` 可检查当前用户已安装的插件；传入时排除 user 设置以避免同时加载旧版。每个样例有独立 Git 基线，T05 续接 T04 会话。脚本保存模型输出、Hook 事件、状态和文件哈希；验收仍需核对语义、文件变化与独立测试，不能仅用进程返回码判定成功。脱敏评测结果见 `tests/results/v0.1.2.json`。
