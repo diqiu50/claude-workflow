@@ -1,4 +1,4 @@
-import importlib.util, json, subprocess, sys, tempfile, unittest
+import shlex, importlib.util, json, subprocess, sys, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('workflow',ROOT/'scripts/workflow.py')
@@ -43,6 +43,32 @@ class WorkflowTests(unittest.TestCase):
   self.assertEqual(self.state()['validation'],'unknown')
   self.assertEqual(self.event('Stop')['decision'],'block')
   self.assertEqual(self.event('Stop',stop_hook_active=True),{})
+ def record_command(self, **changes):
+  options={'--cwd':self.tmp.name,'--session':'test','--status':'passed','--evidence':'Static first([]) review; empty input raises IndexError'}
+  options.update(changes)
+  return shlex.join(['python3',str(ROOT/'scripts/workflow.py'),'record']+[v for pair in options.items() for v in pair])
+ def test_review_record_does_not_invalidate_or_request_permission(self):
+  self.event('UserPromptSubmit',prompt='Review app.py，先不要修改文件')
+  self.assertEqual(self.state()['type'],'review')
+  command=self.record_command()
+  self.assertTrue(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))
+  self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':command}),{})
+  subprocess.run(shlex.split(command),check=True)
+  self.assertEqual(self.state()['validation'],'passed')
+  self.assertEqual(self.event('Stop'),{})
+ def test_record_exemption_rejects_injection_and_other_sessions(self):
+  self.event('UserPromptSubmit',prompt='review')
+  base=self.record_command()
+  commands=[base+'; touch bad',base+' && touch bad',base+' | cat',base+' > out',base+'\ntrue',self.record_command(**{'--session':'other'}),self.record_command(**{'--cwd':'/tmp'}),base.replace(' record ',' route '),base.replace(str(ROOT/'scripts/workflow.py'),'/tmp/workflow.py'),self.record_command(**{'--evidence':'$(touch bad)'})]
+  for command in commands:
+   with self.subTest(command=command):
+    self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':command})['hookSpecificOutput']['permissionDecision'],'ask')
+ def test_development_record_preserves_validation(self):
+  self.event('UserPromptSubmit',prompt='fix typo')
+  command=self.record_command()
+  subprocess.run(shlex.split(command),check=True)
+  self.event('PreToolUse',tool_name='Bash',tool_input={'command':command})
+  self.assertEqual(self.state()['validation'],'passed')
  def test_session_isolation_and_traversal(self):
   self.event('UserPromptSubmit',prompt='review')
   w.handle(dict(self.data,session_id='../../outside',hook_event_name='UserPromptSubmit',prompt='fix typo'))

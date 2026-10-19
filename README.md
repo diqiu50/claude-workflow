@@ -1,4 +1,4 @@
-# Claude Workflow v0.1
+# Claude Workflow v0.1.1
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -44,3 +44,7 @@ CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，�
 - https://code.claude.com/docs/en/hooks
 
 采用默认 hooks/hooks.json 自动加载，manifest 不重复声明；UserPromptSubmit 输出 additionalContext，PreToolUse 使用 permissionDecision，Stop 使用 decision/reason 并处理 stop_hook_active。
+
+## v0.1.1 修复
+
+Review/调查模式下，严格匹配本插件脚本、当前项目和会话的独立 `record` 命令不再触发只读门禁，也不再使已有验证失效。原生 Claude Code 权限仍适用；拼接命令、重定向、命令替换及其他会话的记录不在豁免范围内。Hook 提供实际 CLI 绝对路径，避免依赖模型工具环境中的 CLAUDE_PLUGIN_ROOT。否定表达“不要修改”不再误触发开发候选。
