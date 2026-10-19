@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.3
+# Claude Workflow v0.1.4
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -42,9 +42,9 @@ ETCR = 同时满足验收、约束、无重大返工的任务数 / 总任务数�
 
 ## 状态与边界
 
-项目 `.workflow/` 保存哈希会话 ID 的状态及锁；原子替换和每会话文件锁避免并发覆盖。任务历史保留最近 20 个类型/验证摘要，不保存原始提示或代码。`events.jsonl` 仅含版本、类型、复杂度、时长、验证结果与 unknown 用户反馈。不采集 Token、不自动上传。状态中有最多 2000 字符的 Agent 验证说明，勿填敏感内容。使用前把 `.workflow/` 加入目标项目的 .gitignore；结束会话后可手动删除目录。
+项目 `.workflow/` 保存哈希会话 ID 的状态及锁；原子替换和每会话文件锁避免并发覆盖。任务历史保留最近 20 个类型/验证摘要，不保存原始提示或代码。`events.jsonl` 仅含版本、类型、复杂度、时长、验证结果与 unknown 用户反馈。不采集 Token、不自动上传。状态中有最多 2000 字符的验证摘要或未验证原因。verify 另外在 `.workflow/verification/` 保存所选命令、实际退出码、运行时间和每路最多 64 KiB 的 stdout/stderr 尾部，可能包含私有数据；不会自动上传。使用前把 `.workflow/` 加入目标项目的 .gitignore；结束会话后可手动删除目录。
 
-路由关键词仅为候选，语义纠正由 Agent 负责；本地状态与 record 是 Agent 声明，不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 要求原生权限检查，不尝试用正则证明任意程序只读。开发模式不放宽 Claude Code 原有权限。所有可能有副作用的工具调用保守地使验证失效，包括只读 Bash；实际验证后用 record 登记结果。Stop 最多补充提醒一次，尊重 stop_hook_active；失败或无法验证可交付但必须披露。新用户消息建立新一轮任务并保留摘要。
+路由关键词仅为候选，语义纠正由 Agent 负责；`record` 仅允许声明 unavailable；passed/failed 由 verify 的实际进程结果产生，Stop 核对凭据、输出哈希与任务/编辑版本。本地文件仍不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 要求原生权限检查，不尝试用正则证明任意程序只读。开发模式不放宽 Claude Code 原有权限。所有可能有副作用的工具调用保守地使验证失效，包括只读 Bash；请从一开始就通过 verify 执行验证，避免先直接跑测试再重复跑来补记录。Stop 最多补充提醒一次，尊重 stop_hook_active；失败或无法验证可交付但必须披露。新用户消息建立新一轮任务并保留摘要。
 
 CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，不提交。GitHub Issue 表单位于 .github/ISSUE_TEMPLATE。
 
@@ -76,3 +76,15 @@ python3 tests/e2e/run.py --output /tmp/workflow-e2e-new --plugin-dir "$PWD"
 ## v0.1.3 验证
 
 19 项自动化测试、官方配置校验和六个真实场景通过。日志确认两份本地方法实际读取成功，未调用外部 Superpowers 技能。结果见 tests/results/v0.1.3.json 和 docs/validation.md。6/6 是单次小样本结果，不能视为所有任务的稳定成功率。
+
+## v0.1.4 实际执行验证
+
+```sh
+python3 /path/to/plugin/scripts/workflow.py verify --cwd /path/to/project --session SESSION -- python3 -m unittest -v test_app
+```
+
+使用 Hook 给出的实际脚本路径和会话 ID。CLI 实际启动检查进程，保存退出码与有限输出；Stop Hook 核对该次任务/编辑版本及凭据，成功才登记 passed。非零退出为 failed；超时为 failed；无法启动或被中断为 unavailable。后续可能修改文件的工具调用使结果失效，执行期间发生新修改/新任务的结果不会被采纳。
+
+`record --status passed` 和 `record --status failed` 已移除；`record --status unavailable --evidence "原因"` 用于禁止/无法执行的情况，不能覆盖当前已有的实际失败。未执行受管理检查的静态 Review/调查，在 Stop 自动记 unavailable。普通直接运行的 pytest/unittest 不会自动生成凭据，也不会仅凭文字输出登记成功。
+
+passed 只代表选定命令正常结束，不代表检查选得正确、覆盖充分或所有需求均满足。原生权限仍有效，verify 不自动批准，也不使 Review 获得写入许可。详细接口与证据格式见 docs/verification-executor.md。

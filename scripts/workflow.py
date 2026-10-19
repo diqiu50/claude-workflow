@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Local workflow coordination. Agent declarations are not independent proof."""
-import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex
+import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex, uuid
 from pathlib import Path
 import fcntl
-VERSION = '0.1.3'
+VERSION = '0.1.4'
+from verification import execute, invalidate, refresh
 
 def route(prompt):
     text = prompt.lower()
@@ -85,7 +86,7 @@ def local_record_command(data):
         if len(options) != 4 or set(options) != {'--cwd','--session','--status','--evidence'}: return None
         valid = (Path(options['--cwd']).resolve() == Path(data['cwd']).resolve()
                 and options['--session'] == data['session_id']
-                and options['--status'] in ('passed','failed','unavailable')
+                and options['--status'] == 'unavailable'
                 and bool(options['--evidence'].strip()))
         return command if valid else None
     except (ValueError, OSError):
@@ -101,11 +102,11 @@ def handle(data):
             kind, level = route(data.get('prompt',''))
             history = s.get('history',[])
             if s: history = (history+[{'type':s.get('type'),'validation':s.get('validation')}])[-20:]
-            s.clear(); s.update(version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')),method_candidates=method_modules(kind,data.get('prompt','')))
+            s.clear(); s.update(task_id=uuid.uuid4().hex,revision=0,version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')),method_candidates=method_modules(kind,data.get('prompt','')))
             references = Path(__file__).resolve().parents[1] / 'skills/workflow-router/references'
             methods = ' Local method candidates: ' + ', '.join(str(references / (name + '.md')) for name in s['method_candidates']) + '. Read debugging before bug fixes; read verification before completion claims or validation records. Apply these local references, not external Superpowers skills.' if s['method_candidates'] else ''
             clarification = (' Material ambiguity: broad UX improvement without a selected scope. Inspect context with read tools first, then ask the user to choose a direction before implementation. Do not pick a direction yourself, change APIs, or treat routing as authorization. File edits are gated until a concrete user follow-up.' if s['needs_clarification'] else '')
-            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Never treat a proposed command as a passed check.{clarification}{methods}')
+            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. To record real results, run python3 <CLI-script> verify --cwd <project> --session <session> -- <check argv>. The executor records exit code and output; record only accepts --status unavailable. Never treat a proposed command as a passed check.{clarification}{methods}')
         if not s: return {}
         if event == 'PreToolUse':
             tool = data.get('tool_name','')
@@ -124,12 +125,17 @@ def handle(data):
                 if tool in ('Bash','PowerShell') or tool.startswith('mcp__'):
                     return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'ask','permissionDecisionReason':('Pending clarification: inspect this command/tool for side effects; use read tools to investigate before asking the user.' if s.get('needs_clarification') else 'Read-only workflow: inspect this command/tool for side effects.')}}
             if tool in ('Write','Edit','MultiEdit','NotebookEdit','Bash','PowerShell') or tool.startswith('mcp__'):
-                s.update(dirty=True,validation='unknown')
+                s['dirty']=True
+                invalidate(s)
         if event == 'Stop':
+            receipt = refresh(s, root, data['session_id'])
+            if not receipt and not s.get('dirty') and s['type'] in ('review','investigation') and s['validation']=='unknown':
+                s.update(validation='unavailable',validation_source='hook_no_execution',evidence='No managed verification process completed for this read-only task; static findings are not runtime verification.')
             if s.get('dirty') and s.get('validation') == 'unknown' and not data.get('stop_hook_active') and not s.get('blocked'):
                 s['blocked']=True
-                return {'decision':'block','reason':f'Verification evidence is missing. Run an appropriate check, then record: python3 "{Path(__file__).resolve()}" record --cwd <project> --session <session> --status passed|failed|unavailable --evidence "concrete result or limitation". Report failed/unavailable checks honestly.'}
-            record = {k:s.get(k) for k in ('version','type','complexity','validation')}
+                return {'decision':'block','reason':f'Actual verification evidence is missing. Run python3 "{Path(__file__).resolve()}" verify --cwd <project> --session <session> -- <check executable and args>. Only the executor can record passed/failed. If checks are prohibited or unavailable, use record --status unavailable --evidence "specific limitation". Do not claim unexecuted checks passed.'}
+            record = {k:s.get(k) for k in ('version','type','complexity','validation','validation_source')}
+            if receipt: record.update(verification_id=receipt['id'],exit_code=receipt['exit_code'],outcome=receipt['outcome'])
             record.update(duration_seconds=round(time.time()-s['started'],3),user_feedback='unknown')
             with (root/'events.jsonl').open('a') as out: out.write(json.dumps(record)+'\n')
             s['blocked']=False
@@ -139,22 +145,42 @@ def main():
     parser=argparse.ArgumentParser()
     sub=parser.add_subparsers(dest='cmd',required=True)
     sub.add_parser('hook')
+    q=sub.add_parser('verify')
+    q.add_argument('--cwd',default=os.getcwd()); q.add_argument('--session',required=True)
+    q.add_argument('--timeout',type=float,default=120)
+    q.add_argument('command',nargs=argparse.REMAINDER)
     for name in ('record','route','feedback'):
         q=sub.add_parser(name); q.add_argument('--cwd',default=os.getcwd()); q.add_argument('--session',required=True)
-        if name=='record': q.add_argument('--status',choices=['passed','failed','unavailable'],required=True); q.add_argument('--evidence',required=True)
+        if name=='record': q.add_argument('--status',choices=['unavailable'],required=True); q.add_argument('--evidence',required=True)
         if name=='route': q.add_argument('--type',choices=['development','review','investigation','general'],required=True)
     a=parser.parse_args()
     if a.cmd=='hook':
         try: print(json.dumps(handle(json.load(sys.stdin))))
         except Exception as exc:
             print('Workflow state error: '+str(exc),file=sys.stderr); sys.exit(2)
+    elif a.cmd=='verify':
+        argv=a.command[1:] if a.command[:1]==['--'] else a.command
+        try:
+            result, streams, code = execute(a.cwd,a.session,argv,a.timeout,state_store)
+        except ValueError as exc:
+            parser.error(str(exc))
+        for name, target in (('stdout',sys.stdout),('stderr',sys.stderr)):
+            if streams[name][0]:
+                print(streams[name][0].decode('utf-8',errors='replace'),file=target,end='')
+        print('\n'+json.dumps({'workflow_verification':result}))
+        sys.exit(code)
     else:
         with state_store(a.cwd,a.session) as (s,root):
             if not s: parser.error('No task for this session')
             if a.cmd=='record':
                 if not a.evidence.strip(): parser.error('Evidence cannot be empty')
-                s.update(validation=a.status,evidence=a.evidence[:2000])
-            elif a.cmd=='route': s.update(type=a.type,validation='unknown')
+                actual = refresh(s,root,a.session)
+                s['limitation']=a.evidence[:2000]
+                if not actual:
+                    s.update(validation='unavailable',validation_source='agent_limitation',evidence=a.evidence[:2000])
+            elif a.cmd=='route':
+                s['type']=a.type
+                invalidate(s)
             else:
                 print('## Workflow feedback\nVersion: '+VERSION+'\nType: '+s['type']+'\nValidation: '+s['validation']+'\n\n## Expected / Actual\n\n## Reproduction (redact private data)\n\n## Acceptance criteria for regression\n')
 if __name__=='__main__': main()

@@ -1,6 +1,7 @@
 import shlex, importlib.util, json, subprocess, sys, tempfile, unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
 spec=importlib.util.spec_from_file_location('workflow',ROOT/'scripts/workflow.py')
 w=importlib.util.module_from_spec(spec); spec.loader.exec_module(w)
 class WorkflowTests(unittest.TestCase):
@@ -23,7 +24,7 @@ class WorkflowTests(unittest.TestCase):
   self.assertEqual(self.state()['complexity'],'complex')
   self.event('PreToolUse',tool_name='Edit')
   self.assertEqual(self.event('Stop')['decision'],'block')
-  subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'record','--cwd',self.tmp.name,'--session','test','--status','passed','--evidence','unit tests passed'],check=True)
+  subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'verify','--cwd',self.tmp.name,'--session','test','--',sys.executable,'-c','print(\"check passed\")'],check=True,capture_output=True)
   self.assertEqual(self.event('Stop',stop_hook_active=True),{})
  def test_T04_review(self):
   self.event('UserPromptSubmit',prompt='review PR')
@@ -44,7 +45,7 @@ class WorkflowTests(unittest.TestCase):
   self.assertEqual(self.event('Stop')['decision'],'block')
   self.assertEqual(self.event('Stop',stop_hook_active=True),{})
  def record_command(self, **changes):
-  options={'--cwd':self.tmp.name,'--session':'test','--status':'passed','--evidence':'Static first([]) review; empty input raises IndexError'}
+  options={'--cwd':self.tmp.name,'--session':'test','--status':'unavailable','--evidence':'Static first([]) review; empty input raises IndexError'}
   options.update(changes)
   return shlex.join(['python3',str(ROOT/'scripts/workflow.py'),'record']+[v for pair in options.items() for v in pair])
  def test_review_record_does_not_invalidate_or_request_permission(self):
@@ -54,7 +55,7 @@ class WorkflowTests(unittest.TestCase):
   self.assertTrue(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))
   self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':command}),{})
   subprocess.run(shlex.split(command),check=True)
-  self.assertEqual(self.state()['validation'],'passed')
+  self.assertEqual(self.state()['validation'],'unavailable')
   self.assertEqual(self.event('Stop'),{})
  def test_record_exemption_rejects_injection_and_other_sessions(self):
   self.event('UserPromptSubmit',prompt='review')
@@ -68,7 +69,7 @@ class WorkflowTests(unittest.TestCase):
   command=self.record_command()
   subprocess.run(shlex.split(command),check=True)
   self.event('PreToolUse',tool_name='Bash',tool_input={'command':command})
-  self.assertEqual(self.state()['validation'],'passed')
+  self.assertEqual(self.state()['validation'],'unavailable')
  def test_record_accepts_only_quoted_pwd_as_cwd(self):
   self.event('UserPromptSubmit',prompt='review')
   base=self.record_command()
@@ -83,7 +84,7 @@ class WorkflowTests(unittest.TestCase):
     self.assertEqual(output['updatedInput']['description'],'Record evidence')
     self.assertNotIn('$',output['updatedInput']['command'])
     subprocess.run(output['updatedInput']['command'],shell=True,cwd=self.tmp.name,check=True)
-    self.assertEqual(self.state()['validation'],'passed')
+    self.assertEqual(self.state()['validation'],'unavailable')
   for pwd in ['"$HOME"','"$(pwd)"','"$PWD/.."','"${PWD:-/tmp}"']:
    command=base.replace('--cwd '+literal,'--cwd '+pwd)
    self.assertFalse(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))

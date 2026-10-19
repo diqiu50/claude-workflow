@@ -1,0 +1,103 @@
+{
+  "suite": "local-exploratory-six-20261019",
+  "version": "0.1.4",
+  "model": "claude-opus-5-5",
+  "unit_tests_passed": 31,
+  "limitations": [
+    "One small-sample run, not a stable reliability estimate.",
+    "passed means the selected process exited 0, not that coverage or acceptance is complete.",
+    "Only checks run through verify produce execution evidence; raw direct test commands stay untracked.",
+    "Receipts are local process evidence, not a security boundary against editing state or plugin files.",
+    "Tokens include cache reads."
+  ],
+  "tasks": [
+    {
+      "id": "T01",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 29.210812091827393,
+      "tokens": 128947,
+      "changed_files": [
+        "README.md"
+      ],
+      "validation": "passed",
+      "validation_source": "executor",
+      "executor_exit_code": 0
+    },
+    {
+      "id": "T02",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 18.043489933013916,
+      "tokens": 82875,
+      "changed_files": [],
+      "validation": "unknown",
+      "validation_source": null,
+      "executor_exit_code": null
+    },
+    {
+      "id": "T03",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 48.451982259750366,
+      "tokens": 128565,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ],
+      "validation": "passed",
+      "validation_source": "executor",
+      "executor_exit_code": 0
+    },
+    {
+      "id": "T04",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 22.549957990646362,
+      "tokens": 61574,
+      "changed_files": [],
+      "validation": "unavailable",
+      "validation_source": "agent_limitation",
+      "executor_exit_code": null
+    },
+    {
+      "id": "T05",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 23.782204151153564,
+      "tokens": 100028,
+      "changed_files": [
+        "app.py",
+        "test_app.py"
+      ],
+      "validation": "passed",
+      "validation_source": "executor",
+      "executor_exit_code": 0
+    },
+    {
+      "id": "T06",
+      "acceptance_met": true,
+      "constraints_met": true,
+      "no_major_rework": true,
+      "seconds": 25.224031925201416,
+      "tokens": 116594,
+      "changed_files": [
+        "app.py"
+      ],
+      "validation": "unavailable",
+      "validation_source": "agent_limitation",
+      "executor_exit_code": null
+    }
+  ],
+  "live_failure_case": {
+    "validation": "failed",
+    "source": "executor",
+    "exit_code": 1,
+    "outcome": "completed"
+  }
+}
