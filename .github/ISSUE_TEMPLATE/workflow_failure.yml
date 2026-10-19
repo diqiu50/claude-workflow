@@ -1,0 +1,20 @@
+name: Workflow failure
+description: Report a reproducible workflow failure
+title: "[workflow] "
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Version, task type, and redacted reproduction
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression acceptance criteria

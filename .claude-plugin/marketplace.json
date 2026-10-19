@@ -1,0 +1,17 @@
+{
+  "name": "workflow-local",
+  "owner": {
+    "name": "Workflow contributors"
+  },
+  "plugins": [
+    {
+      "name": "dynamic-workflow",
+      "source": "./",
+      "description": "Dynamic task workflows"
+    }
+  ],
+  "metadata": {
+    "description": "Local marketplace for the dynamic workflow plugin",
+    "version": "0.1.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "dynamic-workflow",
+  "version": "0.1.0",
+  "description": "Dynamic workflows with local evidence and completion checks",
+  "author": {
+    "name": "Claude Workflow contributors"
+  }
+}
