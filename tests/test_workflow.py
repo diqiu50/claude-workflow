@@ -23,7 +23,7 @@ class WorkflowTests(unittest.TestCase):
   self.event('UserPromptSubmit',prompt='实现跨模块迁移')
   self.assertEqual(self.state()['complexity'],'complex')
   self.event('PreToolUse',tool_name='Edit')
-  self.assertEqual(self.event('Stop')['decision'],'block')
+  self.assertEqual(self.event('Stop'),{})
   subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'verify','--cwd',self.tmp.name,'--session','test','--',sys.executable,'-c','print(\"check passed\")'],check=True,capture_output=True)
   self.assertEqual(self.event('Stop',stop_hook_active=True),{})
  def test_T04_review(self):
@@ -42,7 +42,7 @@ class WorkflowTests(unittest.TestCase):
   self.event('UserPromptSubmit',prompt='fix bug')
   self.event('PreToolUse',tool_name='Bash',tool_input={'command':'pytest'})
   self.assertEqual(self.state()['validation'],'unknown')
-  self.assertEqual(self.event('Stop')['decision'],'block')
+  self.assertEqual(self.event('Stop'),{})
   self.assertEqual(self.event('Stop',stop_hook_active=True),{})
  def record_command(self, **changes):
   options={'--cwd':self.tmp.name,'--session':'test','--status':'unavailable','--evidence':'Static first([]) review; empty input raises IndexError'}

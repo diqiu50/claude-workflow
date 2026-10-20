@@ -54,6 +54,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertEqual(self.state()['validation'], 'failed')
         r = self.cli('record', '--status', 'unavailable', '--evidence', 'would like to skip')
         self.assertEqual(r.returncode, 0)
+        self.assertIn('保留实际验证结果：failed', r.stdout)
         self.assertEqual(self.state()['validation'], 'failed')
         self.event('Stop')
         log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
@@ -70,14 +71,14 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.event('PreToolUse', tool_name='Edit')
         with w.state_store(self.cwd, 'session') as (s, _):
             s.update(validation='passed', validation_source='executor')
-        self.assertEqual(self.event('Stop')['decision'], 'block')
+        self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.state()['validation'], 'unknown')
 
     def test_later_edit_invalidates_success(self):
         self.check('print("OK")')
         self.event('PreToolUse', tool_name='Edit')
         self.assertEqual(self.state()['validation'], 'unknown')
-        self.assertEqual(self.event('Stop')['decision'], 'block')
+        self.assertEqual(self.event('Stop'), {})
 
     def test_changed_output_or_receipt_invalidates_success(self):
         for target in ('stdout', 'json'):
@@ -141,51 +142,76 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.state()['validation'], 'unavailable')
 
-    def test_stop_prompt_binds_real_cwd_and_session_and_hook_exits_zero(self):
+    def test_stop_without_verification_exits_zero_without_feedback(self):
         self.event('PreToolUse', tool_name='Edit')
         r = subprocess.run([sys.executable, str(ROOT / 'scripts/workflow.py'), 'hook'],
                            input=json.dumps(dict(cwd=self.cwd, session_id='session', hook_event_name='Stop')),
                            text=True, capture_output=True)
         self.assertEqual(r.returncode, 0)
         self.assertEqual(r.stderr, '')
-        message = json.loads(r.stdout)['reason']
-        self.assertIn('not a script exception', message)
-        self.assertIn(self.cwd, message)
-        self.assertNotIn('<project>', message)
-        self.assertNotIn('<session>', message)
-        prefix, unavailable = w.verification_commands(dict(cwd=self.cwd, session_id='session'))
-        self.assertIn(prefix, message)
-        self.assertIn(unavailable, message)
-        completed = subprocess.run(__import__('shlex').split(unavailable), capture_output=True, text=True)
-        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(json.loads(r.stdout), {})
+        self.assertEqual(self.state()['validation'], 'unknown')
+        log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
+        self.assertEqual(log['validation'], 'unknown')
+        self.assertNotIn('verification_id', log)
+
+    def test_limitation_logging_remains_optional(self):
+        r = self.cli('record', '--status', 'unavailable', '--evidence', 'User prohibited execution')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('已记录检查说明', r.stdout)
         self.assertEqual(self.state()['validation'], 'unavailable')
+        self.assertEqual(self.event('Stop'), {})
 
     def test_repeated_stop_without_changes_does_not_loop(self):
         self.event('PreToolUse', tool_name='Edit')
-        self.assertEqual(self.event('Stop')['decision'], 'block')
+        self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.state()['validation'], 'unknown')
         self.event('PreToolUse', tool_name='Edit')
-        self.assertEqual(self.event('Stop')['decision'], 'block')
+        self.assertEqual(self.event('Stop'), {})
 
-    def test_later_bash_invalidation_is_explained(self):
+    def test_later_bash_invalidation_does_not_interrupt_completion(self):
         self.check('print("OK")')
         self.event('PreToolUse', tool_name='Bash', tool_input={'command': 'git status'})
-        message = self.event('Stop')['reason']
-        self.assertIn('Bash', message)
-        self.assertIn('invalidated an earlier receipt', message)
-        self.assertIn('read-only', message)
+        self.assertEqual(self.event('Stop'), {})
+        self.assertEqual(self.state()['validation'], 'unknown')
+        self.assertFalse(self.state()['blocked'])
 
-    def test_bound_commands_quote_paths_and_session_without_evaluation(self):
-        import shlex
-        project = str(Path(self.cwd) / "project with 'quotes' and $dollars")
-        session = "session$(echo unexpected)"
-        prefix, unavailable = w.verification_commands(dict(cwd=project, session_id=session))
-        for command in (prefix, unavailable):
-            args = shlex.split(command)
-            self.assertEqual(args[args.index('--cwd') + 1], str(Path(project).resolve()))
-            self.assertEqual(args[args.index('--session') + 1], session)
+    def test_prompt_accepts_direct_checks_and_makes_logging_optional(self):
+        message = self.event('UserPromptSubmit', prompt='fix bug')['hookSpecificOutput']['additionalContext']
+        self.assertIn('Direct check results are valid evidence', message)
+        self.assertIn('verify and record CLI commands are optional', message)
+        self.assertIn('missing plugin records never block completion', message)
+
+    def test_direct_check_can_finish_without_plugin_record(self):
+        source = Path(self.cwd) / 'test_example.py'
+        source.write_text('import unittest\nclass Example(unittest.TestCase):\n    def test_sum(self): self.assertEqual(sum([1, 2]), 3)\n')
+        self.event('PreToolUse', tool_name='Bash', tool_input={'command': 'python3 -m unittest test_example'})
+        result = subprocess.run([sys.executable, '-m', 'unittest', 'test_example'],
+                                cwd=self.cwd, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('OK', result.stderr)
+        self.assertEqual(self.event('Stop'), {})
+        self.assertEqual(self.state()['validation'], 'unknown')
+
+    def test_user_forbids_checks_and_legacy_block_does_not_interrupt(self):
+        self.event('UserPromptSubmit', prompt='fix bug; do not run tests or checks')
+        self.event('PreToolUse', tool_name='Edit')
+        with w.state_store(self.cwd, 'session') as (s, _):
+            s.update(blocked=True, stop_reminder_revision=0)
+        self.assertEqual(self.event('Stop'), {})
+        self.assertFalse(self.state()['blocked'])
+        self.assertEqual(self.state()['validation'], 'unknown')
+
+    def test_corrupt_receipt_does_not_block_or_report_success(self):
+        result, _, _ = self.check('print("OK")')
+        Path(result['receipt']).write_text('corrupted')
+        self.assertEqual(self.event('Stop'), {})
+        self.assertEqual(self.state()['validation'], 'unknown')
+        log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
+        self.assertEqual(log['validation'], 'unknown')
+        self.assertNotIn('verification_id', log)
 
     def test_cli_executes_real_command(self):
         command = [sys.executable, str(ROOT / 'scripts/workflow.py'), 'verify', '--cwd', self.cwd,

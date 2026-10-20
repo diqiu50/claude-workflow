@@ -3,7 +3,7 @@
 import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex, uuid
 from pathlib import Path
 import fcntl
-VERSION = '0.1.5'
+VERSION = '0.1.6'
 from verification import execute, invalidate, refresh
 
 def route(prompt):
@@ -95,30 +95,6 @@ def local_record_command(data):
 def is_local_record(data):
     return local_record_command(data) is not None
 
-def verification_commands(data):
-    base = ['python3', str(Path(__file__).resolve())]
-    bound = ['--cwd', str(Path(data['cwd']).resolve()), '--session', data['session_id']]
-    verify = shlex.join(base + ['verify'] + bound) + ' --'
-    unavailable = shlex.join(base + ['record'] + bound + [
-        '--status', 'unavailable', '--evidence',
-        'No current managed verification was completed for this task revision.'])
-    return verify, unavailable
-
-
-def completion_reason(data, state):
-    verify, unavailable = verification_commands(data)
-    previous = state.get('last_invalidation', {})
-    reason = state.get('verification_problem', 'No current managed verification receipt.')
-    if previous.get('had_executor_receipt'):
-        reason += (' A later ' + previous.get('tool', 'tool') +
-                   ' attempt invalidated an earlier receipt. This is conservative: even a read-only Bash attempt can invalidate it.')
-    return ('Workflow completion guard (not a script exception): ' + reason +
-            ' Ordinary tests run outside verify do not create managed evidence. '
-            'For a necessary check, append its actual executable/args to this fully bound prefix:\n' +
-            verify + '\nOnly if no check can be run, record unavailable and disclose the limitation:\n' +
-            unavailable + '\nDo not rerun tests solely to manufacture a receipt; report untracked checks honestly. '
-            'Never claim unexecuted checks passed. This guard reminds once per task revision.')
-
 def handle(data):
     event = data['hook_event_name']
     with state_store(data['cwd'], data['session_id']) as (s, root):
@@ -127,11 +103,10 @@ def handle(data):
             history = s.get('history',[])
             if s: history = (history+[{'type':s.get('type'),'validation':s.get('validation')}])[-20:]
             s.clear(); s.update(task_id=uuid.uuid4().hex,revision=0,version=VERSION,type=kind,complexity=level,history=history,started=time.time(),validation='unknown',dirty=False,blocked=False,needs_clarification=needs_clarification(data.get('prompt','')),method_candidates=method_modules(kind,data.get('prompt','')))
-            verify_prefix, unavailable_command = verification_commands(data)
             references = Path(__file__).resolve().parents[1] / 'skills/workflow-router/references'
             methods = ' Local method candidates: ' + ', '.join(str(references / (name + '.md')) for name in s['method_candidates']) + '. Read debugging before bug fixes; read verification before completion claims or validation records. Apply these local references, not external Superpowers skills.' if s['method_candidates'] else ''
             clarification = (' Material ambiguity: broad UX improvement without a selected scope. Inspect context with read tools first, then ask the user to choose a direction before implementation. Do not pick a direction yourself, change APIs, or treat routing as authorization. File edits are gated until a concrete user follow-up.' if s['needs_clarification'] else '')
-            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. To record real results, append the chosen check argv to: {verify_prefix}. If execution is unavailable, use: {unavailable_command}. The executor records exit code and output; record only accepts --status unavailable. Never treat a proposed command as a passed check.{clarification}{methods}')
+            return context(event, f'Workflow candidate: {kind}; complexity: {level}. Read skill dynamic-workflow:workflow-router. CLI script: {Path(__file__).resolve()}. Semantic routing is your responsibility; correct the candidate with the local CLI before tools if necessary. State session: {data["session_id"]}. Prior workflow summaries: {json.dumps(history)}. Investigate context first; clarify only material ambiguities. Choose checks appropriate to the task; commands are not required for every task. Direct check results are valid evidence. The verify and record CLI commands are optional; missing plugin records never block completion. Do not rerun checks merely to create plugin records. Report actual checks and relevant limitations honestly; never claim unexecuted checks passed.{clarification}{methods}')
         if not s: return {}
         if event == 'PreToolUse':
             tool = data.get('tool_name','')
@@ -156,10 +131,6 @@ def handle(data):
             receipt = refresh(s, root, data['session_id'])
             if not receipt and not s.get('dirty') and s['type'] in ('review','investigation') and s['validation']=='unknown':
                 s.update(validation='unavailable',validation_source='hook_no_execution',evidence='No managed verification process completed for this read-only task; static findings are not runtime verification.')
-            if s.get('dirty') and s.get('validation') == 'unknown' and not data.get('stop_hook_active') and s.get('stop_reminder_revision') != s.get('revision', 0):
-                s['blocked']=True
-                s['stop_reminder_revision']=s.get('revision', 0)
-                return {'decision':'block','reason':completion_reason(data, s)}
             record = {k:s.get(k) for k in ('version','type','complexity','validation','validation_source')}
             if receipt: record.update(verification_id=receipt['id'],exit_code=receipt['exit_code'],outcome=receipt['outcome'])
             record.update(duration_seconds=round(time.time()-s['started'],3),user_feedback='unknown')
@@ -204,6 +175,9 @@ def main():
                 s['limitation']=a.evidence[:2000]
                 if not actual:
                     s.update(validation='unavailable',validation_source='agent_limitation',evidence=a.evidence[:2000])
+                    print('[Workflow] 已记录检查说明。')
+                else:
+                    print('[Workflow] 已记录限制；保留实际验证结果：' + s['validation'] + '。')
             elif a.cmd=='route':
                 s['type']=a.type
                 invalidate(s)

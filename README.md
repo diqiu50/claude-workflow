@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.5
+# Claude Workflow v0.1.6
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -44,7 +44,9 @@ ETCR = 同时满足验收、约束、无重大返工的任务数 / 总任务数�
 
 项目 `.workflow/` 保存哈希会话 ID 的状态及锁；原子替换和每会话文件锁避免并发覆盖。任务历史保留最近 20 个类型/验证摘要，不保存原始提示或代码。`events.jsonl` 仅含版本、类型、复杂度、时长、验证结果与 unknown 用户反馈。不采集 Token、不自动上传。状态中有最多 2000 字符的验证摘要或未验证原因。verify 另外在 `.workflow/verification/` 保存所选命令、实际退出码、运行时间和每路最多 64 KiB 的 stdout/stderr 尾部，可能包含私有数据；不会自动上传。使用前把 `.workflow/` 加入目标项目的 .gitignore；结束会话后可手动删除目录。
 
-路由关键词仅为候选，语义纠正由 Agent 负责；`record` 仅允许声明 unavailable；passed/failed 由 verify 的实际进程结果产生，Stop 核对凭据、输出哈希与任务/编辑版本。本地文件仍不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 要求原生权限检查，不尝试用正则证明任意程序只读。开发模式不放宽 Claude Code 原有权限。所有可能有副作用的工具调用保守地使验证失效，包括只读 Bash；请从一开始就通过 verify 执行验证，避免先直接跑测试再重复跑来补记录。Stop 最多补充提醒一次，尊重 stop_hook_active；失败或无法验证可交付但必须披露。新用户消息建立新一轮任务并保留摘要。
+路由关键词仅为候选，语义纠正由 Agent 负责。根据任务选择检查方式，不要求每次都运行命令；直接运行的测试结果也可作为交付依据。`verify` 和 `record` 是可选的本地记录工具，缺少记录不会阻止结束，也不需要为了结束而补跑检查或补记 unavailable。未执行检查不能声称检查通过，实际失败和重要限制应如实说明。
+
+选择使用 `verify` 时，插件从实际进程结果登记 passed/failed，Stop 核对凭据、输出哈希与任务/编辑版本后写日志；缺失、过期或损坏的记录记为 unknown，不拦截结束。`record` 仅允许声明 unavailable。可能有副作用的工具调用仍保守地使可选凭据失效，包括只读 Bash，但不要求补跑。本地文件仍不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 要求原生权限检查，不尝试用正则证明任意程序只读。开发模式不放宽 Claude Code 原有权限。新用户消息建立新一轮任务并保留摘要。
 
 CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，不提交。GitHub Issue 表单位于 .github/ISSUE_TEMPLATE。
 
@@ -54,7 +56,7 @@ CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，�
 - https://code.claude.com/docs/en/plugins-reference
 - https://code.claude.com/docs/en/hooks
 
-采用默认 hooks/hooks.json 自动加载，manifest 不重复声明；UserPromptSubmit 输出 additionalContext，PreToolUse 使用 permissionDecision，Stop 使用 decision/reason 并处理 stop_hook_active。
+采用默认 hooks/hooks.json 自动加载，manifest 不重复声明；UserPromptSubmit 输出 additionalContext，PreToolUse 使用 permissionDecision，Stop 仅核对可选执行记录并保存摘要，不要求继续验证。
 
 ## v0.1.1 修复
 
@@ -77,7 +79,7 @@ python3 tests/e2e/run.py --output /tmp/workflow-e2e-new --plugin-dir "$PWD"
 
 19 项自动化测试、官方配置校验和六个真实场景通过。日志确认两份本地方法实际读取成功，未调用外部 Superpowers 技能。结果见 tests/results/v0.1.3.json 和 docs/validation.md。6/6 是单次小样本结果，不能视为所有任务的稳定成功率。
 
-## v0.1.4 实际执行验证
+## v0.1.4 实际执行验证（历史行为，v0.1.6 起记录可选）
 
 ```sh
 python3 /path/to/plugin/scripts/workflow.py verify --cwd /path/to/project --session SESSION -- python3 -m unittest -v test_app
@@ -89,8 +91,14 @@ python3 /path/to/plugin/scripts/workflow.py verify --cwd /path/to/project --sess
 
 passed 只代表选定命令正常结束，不代表检查选得正确、覆盖充分或所有需求均满足。原生权限仍有效，verify 不自动批准，也不使 Review 获得写入许可。详细接口与证据格式见 docs/verification-executor.md。
 
-## v0.1.5 Stop 提示与恢复
+## v0.1.5 Stop 提示与恢复（历史行为，v0.1.6 已移除拦截）
 
 Claude Code 可能把 Stop 返回的 `decision: block` 显示为 “Stop hook error”。这不一定是脚本异常：本插件在缺少有效执行凭据时会主动请求继续验证。v0.1.5 的提示明确标识 completion guard，绑定当前脚本路径、项目和会话 ID，不再输出 `<project>`/`<session>` 占位符；提供可追加实际检查命令的 verify 前缀以及完整的 unavailable 记录命令。
 
 同一任务版本只提醒一次，即使客户端再次发送 Stop 且未设置 stop_hook_active 也不会反复拦截。发生新的潜在修改后可再次提醒。提示会说明后续 Bash 等操作使已有凭据失效的情况；这仍是保守策略，查看 git status 也可能使验证失效。直接跑过普通测试但没有受管理凭据时，不要仅为消除提示而重复测试；可以如实披露未登记的结果并记录 unavailable。没有取消真实进程证据要求，也不会自动伪造 passed。
+
+## v0.1.6 移除强制验证
+
+移除缺少验证记录时的 Stop 拦截及恢复命令提示。没有运行检查、直接运行测试、检查记录失效或损坏，都可以正常结束任务；插件不会据此把结果登记为通过。启动提示和本地方法文档同步取消必须使用 `verify` 或补记 `unavailable` 的要求。
+
+`verify` 保留为可选的结果记录工具；`record` 保留为可选的说明记录工具，成功时显示“已记录检查说明”，已有实际结果时说明保留的状态。正常结束不再因缺少记录触发本插件的 “Stop hook error”；真实脚本异常仍会报错。可用 `claude --plugin-dir /path/to/claude-workflow` 在新会话加载本地改动；已安装缓存需更新插件后生效。
