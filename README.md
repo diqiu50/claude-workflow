@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.6
+# Claude Workflow v0.1.7
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -46,7 +46,7 @@ ETCR = 同时满足验收、约束、无重大返工的任务数 / 总任务数�
 
 路由关键词仅为候选，语义纠正由 Agent 负责。根据任务选择检查方式，不要求每次都运行命令；直接运行的测试结果也可作为交付依据。`verify` 和 `record` 是可选的本地记录工具，缺少记录不会阻止结束，也不需要为了结束而补跑检查或补记 unavailable。未执行检查不能声称检查通过，实际失败和重要限制应如实说明。
 
-选择使用 `verify` 时，插件从实际进程结果登记 passed/failed，Stop 核对凭据、输出哈希与任务/编辑版本后写日志；缺失、过期或损坏的记录记为 unknown，不拦截结束。`record` 仅允许声明 unavailable。可能有副作用的工具调用仍保守地使可选凭据失效，包括只读 Bash，但不要求补跑。本地文件仍不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 要求原生权限检查，不尝试用正则证明任意程序只读。开发模式不放宽 Claude Code 原有权限。新用户消息建立新一轮任务并保留摘要。
+选择使用 `verify` 时，插件从实际进程结果登记 passed/failed，Stop 核对凭据、输出哈希与任务/编辑版本后写日志；缺失、过期或损坏的记录记为 unknown，不拦截结束。`record` 仅允许声明 unavailable。可能有副作用的工具调用仍保守地使可选凭据失效，包括只读 Bash，但不要求补跑。本地文件仍不是不可篡改的安全边界。Review/调查阻止直接编辑；Bash、PowerShell、MCP 沿用 Claude Code 原生权限判断，插件不额外要求逐次确认，也不自动批准命令。插件不通过解析任意命令来保证只读，Agent 仍须遵守只读任务范围。新用户消息建立新一轮任务并保留摘要。
 
 CLI `python3 scripts/workflow.py --help`；`feedback` 仅输出 Issue 草稿，不提交。GitHub Issue 表单位于 .github/ISSUE_TEMPLATE。
 
@@ -102,3 +102,7 @@ Claude Code 可能把 Stop 返回的 `decision: block` 显示为 “Stop hook er
 移除缺少验证记录时的 Stop 拦截及恢复命令提示。没有运行检查、直接运行测试、检查记录失效或损坏，都可以正常结束任务；插件不会据此把结果登记为通过。启动提示和本地方法文档同步取消必须使用 `verify` 或补记 `unavailable` 的要求。
 
 `verify` 保留为可选的结果记录工具；`record` 保留为可选的说明记录工具，成功时显示“已记录检查说明”，已有实际结果时说明保留的状态。正常结束不再因缺少记录触发本插件的 “Stop hook error”；真实脚本异常仍会报错。可用 `claude --plugin-dir /path/to/claude-workflow` 在新会话加载本地改动；已安装缓存需更新插件后生效。
+
+## v0.1.7 移除重复权限确认
+
+Review、调查和等待澄清时，不再对每一条 Bash、PowerShell、MCP 调用返回 `permissionDecision: ask`。代码搜索、管道和多条查询命令交给 Claude Code 原生权限系统判断，插件不额外弹窗，也不返回 `allow` 跳过权限检查；原生规则、其他 Hook 或工具自身仍可能要求确认。只读模式下对 Write/Edit 等直接编辑工具的限制保留；Shell/MCP 的只读要求由 Agent 遵守，并受原生权限规则约束。

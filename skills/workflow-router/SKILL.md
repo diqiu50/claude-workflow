@@ -12,6 +12,8 @@ Development: understand → inspect → plan as needed → implement → verify 
 Review: read diff and callers → substantiate findings with locations and failure examples → deliver. Default read-only.
 Investigation: collect evidence → hypotheses → test → distinguish confirmed root cause from uncertainty. Default read-only; ask user before invasive probes.
 
+Shell and MCP calls use Claude Code's native permission decisions. The plugin does not force per-call confirmation or auto-approve these tools. Direct edits remain gated in read-only or pending-clarification workflows. This gate does not establish that shell/MCP calls are read-only; respect the user's scope and use read-only operations during review or investigation.
+
 This plugin includes two local method references adapted from Superpowers, without an external dependency or startup hook. Read only the relevant reference, using the absolute method path supplied by the prompt hook (or this skill's references/ directory):
 - references/debugging.md: before investigating or proposing a bug fix; skip for typo-only edits. Reuse prior root-cause evidence when switching from Review to repair.
 - references/verification.md: before final completion claims or recording validation; use proportionate fresh evidence and respect forbidden execution.

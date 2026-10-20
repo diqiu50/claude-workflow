@@ -30,7 +30,7 @@ class WorkflowTests(unittest.TestCase):
   self.event('UserPromptSubmit',prompt='review PR')
   for tool in ['Write','Edit','NotebookEdit']:
    self.assertEqual(self.event('PreToolUse',tool_name=tool)['hookSpecificOutput']['permissionDecision'],'deny')
-  self.assertEqual(self.event('PreToolUse',tool_name='Bash')['hookSpecificOutput']['permissionDecision'],'ask')
+  self.assertEqual(self.event('PreToolUse',tool_name='Bash'),{})
   self.assertEqual(self.event('PreToolUse',tool_name='Read'),{})
  def test_T05_switch(self):
   self.event('UserPromptSubmit',prompt='review PR')
@@ -63,7 +63,9 @@ class WorkflowTests(unittest.TestCase):
   commands=[base+'; touch bad',base+' && touch bad',base+' | cat',base+' > out',base+'\ntrue',self.record_command(**{'--session':'other'}),self.record_command(**{'--cwd':'/tmp'}),base.replace(' record ',' route '),base.replace(str(ROOT/'scripts/workflow.py'),'/tmp/workflow.py'),self.record_command(**{'--evidence':'$(touch bad)'})]
   for command in commands:
    with self.subTest(command=command):
-    self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':command})['hookSpecificOutput']['permissionDecision'],'ask')
+    self.assertFalse(w.is_local_record(dict(self.data,tool_name='Bash',tool_input={'command':command})))
+    self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':command}),{})
+    self.assertTrue(self.state()['dirty'])
  def test_development_record_preserves_validation(self):
   self.event('UserPromptSubmit',prompt='fix typo')
   command=self.record_command()
@@ -95,7 +97,7 @@ class WorkflowTests(unittest.TestCase):
   self.assertEqual(self.event('PreToolUse',tool_name='Read'),{})
   subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'route','--cwd',self.tmp.name,'--session','test','--type','development'],check=True)
   self.assertEqual(self.event('PreToolUse',tool_name='Edit')['hookSpecificOutput']['permissionDecision'],'deny')
-  self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':'python3 app.py'})['hookSpecificOutput']['permissionDecision'],'ask')
+  self.assertEqual(self.event('PreToolUse',tool_name='Bash',tool_input={'command':'python3 app.py'}),{})
   self.event('UserPromptSubmit',prompt='只改 README，补充现有 API 用法，不修改代码。')
   self.assertFalse(self.state()['needs_clarification'])
   self.assertEqual(self.event('PreToolUse',tool_name='Edit'),{})
@@ -103,6 +105,21 @@ class WorkflowTests(unittest.TestCase):
   for prompt in ['优化使用体验：只改 README 的用法说明','Improve UX, specifically document the existing API','修复 first([])，空列表返回 None']:
    self.assertFalse(w.needs_clarification(prompt))
   self.assertTrue(w.needs_clarification('Improve the user experience'))
+ def test_shell_and_mcp_use_native_permissions_in_read_only_and_pending_modes(self):
+  for prompt in ['review PR','investigate bug','优化这个项目的使用体验。']:
+   self.event('UserPromptSubmit',prompt=prompt)
+   for tool,tool_input in [('Bash',{'command':'grep -n appendDefaultValue app.py | sed -n 40,120p; git diff'}),('PowerShell',{'command':'Get-Content app.py'}),('mcp__example__read_file',{'path':'app.py'}),('Bash',{'command':'python3 app.py'}),('mcp__example__write_file',{'path':'app.py','content':'changed'})]:
+    with self.subTest(prompt=prompt,tool=tool,tool_input=tool_input):
+     self.assertEqual(self.event('PreToolUse',tool_name=tool,tool_input=tool_input),{})
+   self.assertEqual(self.event('PreToolUse',tool_name='Edit')['hookSpecificOutput']['permissionDecision'],'deny')
+ def test_review_search_hook_exits_zero_without_permission_override(self):
+  self.event('UserPromptSubmit',prompt='review PR')
+  command='grep -n "appendDefaultValue" -A32 catalogs/catalog-jdbc-mysql/src/main/java/org/apache/gravitino/catalog/mysql/operation/MysqlTableOperations.java | sed -n 40,120p; grep -n "appendDefaultValue" -A30 catalogs/catalog-jdbc-starrocks/src/main/java/org/apache/gravitino/catalog/starrocks/operations/StarRocksTableOperations.java | tail -50; grep -rn "updateColumnType\\|UpdateColumnType" catalogs/catalog-jdbc-mysql/src/test catalogs/catalog-jdbc-starrocks/src/test | head'
+  data=dict(self.data,hook_event_name='PreToolUse',tool_name='Bash',tool_input={'command':command})
+  result=subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'hook'],input=json.dumps(data),text=True,capture_output=True)
+  self.assertEqual(result.returncode,0,result.stderr)
+  self.assertEqual(result.stderr,'')
+  self.assertEqual(json.loads(result.stdout),{})
  def test_local_methods_are_selected_lazily(self):
   cases=[('修复 README 拼写错误',['verification']),('修复 first([]) 崩溃',['debugging','verification']),('排查登录失败',['debugging','verification']),('Review app.py',['verification']),('优化这个项目的使用体验',[])]
   for prompt,expected in cases:

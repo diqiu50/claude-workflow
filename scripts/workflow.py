@@ -3,7 +3,7 @@
 import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex, uuid
 from pathlib import Path
 import fcntl
-VERSION = '0.1.6'
+VERSION = '0.1.7'
 from verification import execute, invalidate, refresh
 
 def route(prompt):
@@ -119,11 +119,10 @@ def handle(data):
                     return {'hookSpecificOutput':{'hookEventName':event,'updatedInput':updated}}
                 return {}
             if s['type'] in ('review','investigation') or s.get('needs_clarification'):
-                # A shell parser cannot prove arbitrary commands read-only. Defer to native permission UI.
+                # Guard direct edits here; leave shell/MCP permission decisions to
+                # Claude Code instead of forcing confirmation for every call.
                 if tool in ('Write','Edit','MultiEdit','NotebookEdit'):
                     return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'deny','permissionDecisionReason':('Clarify the improvement direction with the user before editing. A route change does not clear this requirement.' if s.get('needs_clarification') else 'Read-only workflow. User must request implementation before switching to development.')}}
-                if tool in ('Bash','PowerShell') or tool.startswith('mcp__'):
-                    return {'hookSpecificOutput':{'hookEventName':event,'permissionDecision':'ask','permissionDecisionReason':('Pending clarification: inspect this command/tool for side effects; use read tools to investigate before asking the user.' if s.get('needs_clarification') else 'Read-only workflow: inspect this command/tool for side effects.')}}
             if tool in ('Write','Edit','MultiEdit','NotebookEdit','Bash','PowerShell') or tool.startswith('mcp__'):
                 s['dirty']=True
                 invalidate(s, tool)
