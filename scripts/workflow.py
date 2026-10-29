@@ -3,7 +3,7 @@
 import argparse, contextlib, hashlib, json, os, re, sys, tempfile, time, shlex, uuid
 from pathlib import Path
 import fcntl
-VERSION = '0.1.7'
+VERSION = '0.1.8'
 from verification import execute, invalidate, refresh
 
 def route(prompt):

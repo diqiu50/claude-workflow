@@ -1,4 +1,4 @@
-# Claude Workflow v0.1.7
+# Claude Workflow v0.1.8
 
 Python 3.9+，Claude Code Plugin。三类 Hook、语义路由提示、开发/Review/调查流程、每会话本地状态、最小日志、六个回归场景、ETCR 评测和 Issue 模板。
 
@@ -106,3 +106,14 @@ Claude Code 可能把 Stop 返回的 `decision: block` 显示为 “Stop hook er
 ## v0.1.7 移除重复权限确认
 
 Review、调查和等待澄清时，不再对每一条 Bash、PowerShell、MCP 调用返回 `permissionDecision: ask`。代码搜索、管道和多条查询命令交给 Claude Code 原生权限系统判断，插件不额外弹窗，也不返回 `allow` 跳过权限检查；原生规则、其他 Hook 或工具自身仍可能要求确认。只读模式下对 Write/Edit 等直接编辑工具的限制保留；Shell/MCP 的只读要求由 Agent 遵守，并受原生权限规则约束。
+
+## v0.1.8 调整状态目录
+
+状态、锁、事件日志和验证产物统一保存到项目 `.claude/.workflow/`，目录不存在时自动创建。测试、端到端脚本和忽略规则同步更新。旧 `.workflow/` 不再读写，也不会自动迁移；如需保留已有会话，请在停止相关会话后将其移至新目录。
+
+更新并重启 Claude Code 后生效：
+
+```sh
+claude plugin marketplace update workflow-local
+claude plugin update dynamic-workflow@workflow-local
+```
