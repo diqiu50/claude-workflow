@@ -44,6 +44,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertIn(b'3 checks OK', streams['stdout'][0])
         self.assertIn(b'diagnostic', streams['stderr'][0])
         self.assertEqual(json.loads(Path(result['receipt']).read_text())['exit_code'], 0)
+        self.assertEqual(Path(result['receipt']).parent, Path(self.cwd).resolve() / '.claude/.workflow/verification')
         self.assertEqual(self.state()['validation_source'], 'executor')
         self.assertEqual(self.event('Stop'), {})
 
@@ -57,7 +58,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertIn('保留实际验证结果：failed', r.stdout)
         self.assertEqual(self.state()['validation'], 'failed')
         self.event('Stop')
-        log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
+        log = json.loads((Path(self.cwd) / '.claude/.workflow/events.jsonl').read_text().splitlines()[-1])
         self.assertEqual(log['exit_code'], 7)
         self.assertEqual(log['validation_source'], 'executor')
 
@@ -151,7 +152,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
         self.assertEqual(r.stderr, '')
         self.assertEqual(json.loads(r.stdout), {})
         self.assertEqual(self.state()['validation'], 'unknown')
-        log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
+        log = json.loads((Path(self.cwd) / '.claude/.workflow/events.jsonl').read_text().splitlines()[-1])
         self.assertEqual(log['validation'], 'unknown')
         self.assertNotIn('verification_id', log)
 
@@ -209,7 +210,7 @@ class ExecutionEvidenceTests(unittest.TestCase):
         Path(result['receipt']).write_text('corrupted')
         self.assertEqual(self.event('Stop'), {})
         self.assertEqual(self.state()['validation'], 'unknown')
-        log = json.loads((Path(self.cwd) / '.workflow/events.jsonl').read_text().splitlines()[-1])
+        log = json.loads((Path(self.cwd) / '.claude/.workflow/events.jsonl').read_text().splitlines()[-1])
         self.assertEqual(log['validation'], 'unknown')
         self.assertNotIn('verification_id', log)
 

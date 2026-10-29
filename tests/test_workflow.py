@@ -11,6 +11,20 @@ class WorkflowTests(unittest.TestCase):
  def event(self,event,**kw): return w.handle(dict(self.data,hook_event_name=event,**kw))
  def state(self):
   with w.state_store(self.tmp.name,'test') as (s,_): return dict(s)
+ def test_state_directory_is_created_under_claude(self):
+  self.event('UserPromptSubmit',prompt='fix typo')
+  root=Path(self.tmp.name)/'.claude'/'.workflow'
+  self.assertEqual(len(list(root.glob('*.json'))),1)
+  self.assertEqual(len(list(root.glob('*.lock'))),1)
+  self.assertFalse((Path(self.tmp.name)/'.workflow').exists())
+ def test_existing_claude_configuration_is_preserved(self):
+  claude=Path(self.tmp.name)/'.claude'
+  claude.mkdir()
+  settings=claude/'settings.json'
+  settings.write_text('{"permissions": {}}')
+  self.event('UserPromptSubmit',prompt='fix typo')
+  self.assertEqual(settings.read_text(),'{"permissions": {}}')
+  self.assertEqual(self.state()['type'],'development')
  def test_T01_simple(self):
   self.event('UserPromptSubmit',prompt='fix typo')
   self.assertEqual(self.state()['complexity'],'simple')
@@ -140,7 +154,7 @@ class WorkflowTests(unittest.TestCase):
   self.event('UserPromptSubmit',prompt='review')
   w.handle(dict(self.data,session_id='../../outside',hook_event_name='UserPromptSubmit',prompt='fix typo'))
   self.assertEqual(self.state()['type'],'review')
-  self.assertEqual(len(list((Path(self.tmp.name)/'.workflow').glob('*.json'))),2)
+  self.assertEqual(len(list((Path(self.tmp.name)/'.claude'/'.workflow').glob('*.json'))),2)
  def test_stdio_contract(self):
   r=subprocess.run([sys.executable,str(ROOT/'scripts/workflow.py'),'hook'],input=json.dumps(dict(self.data,hook_event_name='UserPromptSubmit',prompt='review')),text=True,capture_output=True)
   self.assertEqual(r.returncode,0); self.assertEqual(json.loads(r.stdout)['hookSpecificOutput']['hookEventName'],'UserPromptSubmit')

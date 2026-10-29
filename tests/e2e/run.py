@@ -35,7 +35,7 @@ def run(case,prompt,d,session=None):
   (root/(case+'.stream.jsonl')).write_text(r.stdout)
   events=[json.loads(line) for line in r.stdout.splitlines() if line.startswith('{')]
   final=next((e for e in reversed(events) if e.get('type')=='result'),{})
-  states=[json.loads(p.read_text()) for p in (d/'.workflow').glob('*.json')]
+  states=[json.loads(p.read_text()) for p in (d/'.claude'/'.workflow').glob('*.json')]
   report=dict(case=case,seconds=time.time()-start,returncode=r.returncode,result=final,states=states,before=before,after=snapshot(d),stderr=r.stderr)
  except subprocess.TimeoutExpired:
   report=dict(case=case,error='timeout',seconds=time.time()-start); final={}

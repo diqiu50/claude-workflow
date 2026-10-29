@@ -41,8 +41,8 @@ def method_modules(kind, prompt):
 
 @contextlib.contextmanager
 def state_store(cwd, session):
-    root = Path(cwd).resolve()/'.workflow'
-    root.mkdir(mode=0o700, exist_ok=True)
+    root = Path(cwd).resolve()/'.claude'/'.workflow'
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
     key = hashlib.sha256(session.encode()).hexdigest()[:24]
     target = root/(key+'.json')
     with (root/(key+'.lock')).open('a') as lock:
